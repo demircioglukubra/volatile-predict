@@ -33,11 +33,12 @@ X = final_data_weighted.drop(columns=['devol_yield']).iloc[:, 1:]
 data_prep = preprocess.DataPreparation(X, y)
 X_train, X_test, y_train, y_test = data_prep.split_data()
 
+# Save column names before conversion
+feature_names = X.columns if isinstance(X, pd.DataFrame) else [f"Feature_{i}" for i in range(X.shape[1])]
 
 # Convert data to DMatrix format for XGBoost
 dtrain = DMatrix(X_train, label=y_train)
 dtest = DMatrix(X_test, label=y_test)
-
 
 # Define parameter distributions for random search
 param_distributions = {
@@ -84,8 +85,10 @@ for i in range(n_iter):
 
         # Cross-validate for the current parameter combination
         for train_index, test_index in kf.split(X_train):
-            X_train_fold, X_val_fold = X_train[train_index], X_train[test_index]
-            y_train_fold, y_val_fold = y_train[train_index], y_train[test_index]
+            X_train_fold = X_train[train_index]
+            X_val_fold = X_train[test_index]
+            y_train_fold = y_train[train_index]
+            y_val_fold = y_train[test_index]
 
             # Train the model
             model = XGBRegressor(
@@ -140,11 +143,18 @@ final_model.fit(X_train, y_train)
 
 # Make predictions and evaluate performance
 y_pred = final_model.predict(X_test)
-rmse = mean_squared_error(y_test, y_pred)**0.5
+rmse = mean_squared_error(y_test, y_pred) ** 0.5
 r_squared = r2_score(y_test, y_pred)
+feature_importances = final_model.feature_importances_
+
+# Use saved feature names
+importance_df = pd.DataFrame({
+    'Feature': feature_names,
+    'Importance': feature_importances
+}).sort_values(by='Importance', ascending=False)
 
 print(f"\nBest parameters (random search): {best_params}")
 print(f"Optimal number of boosting rounds: {best_num_boost_round}")
 print(f"Mean Squared Error: {rmse}")
 print(f"R-Squared: {r_squared}")
-
+print(f"Feature Importance: \n{importance_df}")
