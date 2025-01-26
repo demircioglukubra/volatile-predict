@@ -99,6 +99,8 @@ class OutlierRemoval:
         self.z_scores = stats.zscore(self.dataframe[self.column_name])
         return self.z_scores
 
+
+
     def filter_outliers(self, threshold=2):
         """
         Filter rows where absolute z-scores are below the specified threshold.
@@ -142,33 +144,4 @@ class DataVisualizer:
         plt.show()
 
 
-class DataPreparation:
-    def __init__(self, X, y):
-        self.X = X
-        self.y = y
 
-    def split_data(self):
-        # Initialize KFold for splitting
-        skf = KFold(n_splits=4, random_state=42, shuffle=True)
-
-        processed_data = []  # Store processed splits (useful for all folds if needed)
-
-        for train_index, test_index in skf.split(self.X, self.y):
-            # Split the data
-            X_train, X_test = self.X.iloc[train_index], self.X.iloc[test_index]
-            y_train, y_test = self.y.iloc[train_index], self.y.iloc[test_index]
-
-            # Scale features
-            scaler = StandardScaler()
-            X_train = scaler.fit_transform(X_train)
-            X_test = scaler.transform(X_test)
-
-            # Convert targets to numpy arrays (if not already)
-            y_train = y_train.to_numpy()
-            y_test = y_test.to_numpy()
-
-            # Append current split to processed_data
-            processed_data.append((X_train, X_test, y_train, y_test))
-
-        # Return only the first fold (or use all folds as needed)
-        return processed_data[0]  # Or return `processed_data` if you want all splits

@@ -1,14 +1,17 @@
 import preprocess
+import xgboost as xgb
 from preprocess import DataProcessor
 from xgboost import cv, DMatrix, train, XGBRegressor
-from sklearn.model_selection import KFold, RandomizedSearchCV
+from sklearn.model_selection import KFold, RandomizedSearchCV, train_test_split
+from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score
 import pandas as pd
 import numpy as np
+from xgboost_visualizer import visualize_xgboost_tree, visualize_tree_with_networkx
 
 # File paths
-f_path = r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\features.csv"
-l_path = r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\labels.csv"
+f_path = r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\preprocess\features.csv"
+l_path = r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\preprocess\labels.csv"
 
 # Load data and combine together the devolatile rate and fuel chars and kinetic parameters
 data_processor = preprocess.DataProcessor(f_path, l_path)
@@ -26,23 +29,33 @@ biomass_fuels = feature_engineering.biomass_fuels()
 mixed_fuels = preprocess.OutlierRemoval(mixed_fuels, 'devol_yield').filter_outliers()
 biomass_fuels = preprocess.OutlierRemoval(biomass_fuels, 'devol_yield').filter_outliers()
 
-y = final_data_weighted['devol_yield']
-y = pd.DataFrame(y)
-X = final_data_weighted.drop(columns=['devol_yield']).iloc[:, 1:]
+X, y = final_data_weighted.drop(columns=['devol_yield']).iloc[:, 1:],  pd.DataFrame(final_data_weighted['devol_yield'])
 
-data_prep = preprocess.DataPreparation(X, y)
-X_train, X_test, y_train, y_test = data_prep.split_data()
+# Perform 80-20 split for training and test data
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
 
-# Save column names before conversion
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Save test and train data as CSV files (optional, if needed for persistence)
+pd.DataFrame(X_train_scaled, columns=X.columns).to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\training_features.csv', index=False)
+pd.DataFrame(X_test_scaled, columns=X.columns).to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\testing_features.csv', index=False)
+y_train.to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\training_labels.csv', index=False)
+y_test.to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\testing_labels.csv', index=False)
+
+# Placeholder to visualize feature names if needed
 feature_names = X.columns if isinstance(X, pd.DataFrame) else [f"Feature_{i}" for i in range(X.shape[1])]
 
-# Convert data to DMatrix format for XGBoost
-dtrain = DMatrix(X_train, label=y_train)
-dtest = DMatrix(X_test, label=y_test)
+# Update XGBoost cross-validation process to use only training data
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
+results = []
 
 # Define parameter distributions for random search
 param_distributions = {
-    'max_depth': [3, 5, 7],
+    'max_depth': [5, 7, 9],
     'learning_rate': np.random.uniform(0.01, 0.2, 10),
     'subsample': np.random.uniform(0.8, 1.0, 10),
     'colsample_bytree': np.random.uniform(0.8, 1.0, 10),
@@ -59,10 +72,6 @@ boost_rounds = [100, 200, 300]
 best_params = None
 best_score = float('inf')
 best_num_boost_round = None
-
-# Perform random search
-kf = KFold(n_splits=3, shuffle=True, random_state=42)  # Use 3-fold cross-validation
-results = []
 
 print("Starting Random Search...")
 for i in range(n_iter):
@@ -83,14 +92,11 @@ for i in range(n_iter):
         print(f"Testing params: {params} with num_boost_round={num_boost_round}")
         fold_scores = []
 
-        # Cross-validate for the current parameter combination
-        for train_index, test_index in kf.split(X_train):
-            X_train_fold = X_train[train_index]
-            X_val_fold = X_train[test_index]
-            y_train_fold = y_train[train_index]
-            y_val_fold = y_train[test_index]
+        # Cross-validate using only the training set
+        for train_index, val_index in kf.split(X_train_scaled, y_train):
+            X_train_fold, X_val_fold = X_train_scaled[train_index], X_train_scaled[val_index]
+            y_train_fold, y_val_fold = y_train.iloc[train_index], y_train.iloc[val_index]
 
-            # Train the model
             model = XGBRegressor(
                 max_depth=params['max_depth'],
                 learning_rate=params['learning_rate'],
@@ -123,7 +129,7 @@ for i in range(n_iter):
             best_params = params
             best_num_boost_round = num_boost_round
 
-# Train final model with the best parameters
+# Train the final model on the entire training set with the best parameters
 print("\nTraining final model with best parameters...")
 final_model = XGBRegressor(
     max_depth=best_params['max_depth'],
@@ -139,22 +145,14 @@ final_model = XGBRegressor(
     random_state=42
 )
 
-final_model.fit(X_train, y_train)
+final_model.fit(X_train_scaled, y_train)
 
-# Make predictions and evaluate performance
-y_pred = final_model.predict(X_test)
-rmse = mean_squared_error(y_test, y_pred) ** 0.5
-r_squared = r2_score(y_test, y_pred)
-feature_importances = final_model.feature_importances_
+# Evaluate on the test set
+y_pred_test = final_model.predict(X_test_scaled)
+test_rmse = mean_squared_error(y_test, y_pred_test) ** 0.5
+test_r2 = r2_score(y_test, y_pred_test)
 
-# Use saved feature names
-importance_df = pd.DataFrame({
-    'Feature': feature_names,
-    'Importance': feature_importances
-}).sort_values(by='Importance', ascending=False)
-
-print(f"\nBest parameters (random search): {best_params}")
-print(f"Optimal number of boosting rounds: {best_num_boost_round}")
-print(f"Mean Squared Error: {rmse}")
-print(f"R-Squared: {r_squared}")
-print(f"Feature Importance: \n{importance_df}")
+print(f"\nBest parameters (grid search): {best_params}")
+print(f"\nTest Set Performance:")
+print(f"Test RMSE: {test_rmse}")
+print(f"Test R-Squared: {test_r2}")
