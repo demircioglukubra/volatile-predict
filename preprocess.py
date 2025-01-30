@@ -3,11 +3,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
-from sklearn.model_selection import train_test_split, KFold
-from sklearn.impute import SimpleImputer
-from sklearn.feature_selection import SelectKBest, f_regression
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_squared_error, r2_score
 
 
 class DataProcessor:
@@ -93,26 +88,56 @@ class OutlierRemoval:
         self.z_scores = None
 
     def calculate_z_scores(self):
-        """
-        Calculate z-scores for the specified column in the dataframe.
-        """
         self.z_scores = stats.zscore(self.dataframe[self.column_name])
         return self.z_scores
 
 
-
     def filter_outliers(self, threshold=2):
-        """
-        Filter rows where absolute z-scores are below the specified threshold.
-
-        :param threshold: Z-score threshold for outlier detection (default is 2)
-        """
         if self.z_scores is None:
             self.calculate_z_scores()
 
         filtered_dataframe = self.dataframe[abs(self.z_scores) < threshold]
         return filtered_dataframe
 
+
+class OutlierRemoval:
+    def __init__(self, dataframe, column_name):
+        self.dataframe = dataframe
+        self.column_name = column_name
+        self.iqr = None
+        self.lower_bound = None
+        self.upper_bound = None
+
+    def calculate_iqr(self):
+        Q1 = self.dataframe[self.column_name].quantile(0.25)
+        Q3 = self.dataframe[self.column_name].quantile(0.75)
+        self.iqr = Q3 - Q1
+        self.lower_bound = Q1 - 1.5 * self.iqr
+        self.upper_bound = Q3 + 1.5 * self.iqr
+
+        return self.iqr, self.lower_bound, self.upper_bound
+
+    def remove_outliers(self):
+        self.calculate_iqr()
+        return self.dataframe[(self.dataframe[self.column_name] >= self.lower_bound) &
+                              (self.dataframe[self.column_name] <= self.upper_bound)]
+
+    def count_nan_values(self):
+        """For each column, sum up the NaN values"""
+        return self.dataframe[self.column_name].isna().sum()
+
+    def impute_missing_values(self, strategy="median"):
+        if strategy == "mean":
+            value = self.dataframe[self.column_name].mean()
+        elif strategy == "median":
+            value = self.dataframe[self.column_name].median()
+        elif strategy == "mode":
+            value = self.dataframe[self.column_name].mode()[0]
+        else:
+            raise ValueError("Choose from 'mean', 'median', or 'mode'.")
+
+        self.dataframe[self.column_name].fillna(value, inplace=True)
+        return self.dataframe
 
 
 class DataVisualizer:
