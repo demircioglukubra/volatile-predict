@@ -1,50 +1,32 @@
+import sys
+sys.path.append('/path/to/other-branch-folder/')
 import preprocess
 import xgboost as xgb
-from preprocess import DataProcessor
 from xgboost import cv, DMatrix, train, XGBRegressor
 from sklearn.model_selection import KFold, RandomizedSearchCV, train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score
 import pandas as pd
 import numpy as np
-from xgboost_visualizer import visualize_xgboost_tree, visualize_tree_with_networkx
 
-# File paths
-f_path = r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\preprocess\features.csv"
-l_path = r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\preprocess\labels.csv"
+X_path = r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\prepped_data\preprocessed_features.csv"
+y_path = r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\prepped_data\preprocessed_labels.csv"
 
-# Load data and combine together the devolatile rate and fuel chars and kinetic parameters
-data_processor = preprocess.DataProcessor(f_path, l_path)
-features, labels = data_processor.load_data()
-combined_data = data_processor.preprocess_data(features, labels)
+X,y = preprocess.load_data(X_path,y_path)
+X = X.iloc[:, 1:]
 
-# For mixed fuels calculate weighted fuel characteristics
-feature_engineering = preprocess.FeatureEngineering(combined_data)
-final_data_weighted = feature_engineering.calculate_weighted_characteristics()
 
-# Split dataset into mixed_fuels and biomass_only datasets
-mixed_fuels = feature_engineering.mixed_fuels()
-biomass_fuels = feature_engineering.biomass_fuels()
-
-mixed_fuels = preprocess.OutlierRemoval(mixed_fuels, 'devol_yield').filter_outliers()
-biomass_fuels = preprocess.OutlierRemoval(biomass_fuels, 'devol_yield').filter_outliers()
-
-X, y = final_data_weighted.drop(columns=['devol_yield']).iloc[:, 1:],  pd.DataFrame(final_data_weighted['devol_yield'])
-
-# Perform 80-20 split for training and test data
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
 # Save test and train data as CSV files (optional, if needed for persistence)
-pd.DataFrame(X_train_scaled, columns=X.columns).to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\training_features.csv', index=False)
-pd.DataFrame(X_test_scaled, columns=X.columns).to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\testing_features.csv', index=False)
-y_train.to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\training_labels.csv', index=False)
-y_test.to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\testing_labels.csv', index=False)
+pd.DataFrame(X_train_scaled, columns=X.columns).to_csv(r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\prepped_data\scaled_prepped\X_train.csv", index=False)
+pd.DataFrame(X_test_scaled, columns=X.columns).to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\prepped_data\scaled_prepped\X_test.csv', index=False)
+y_train.to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\prepped_data\scaled_prepped\y_train.csv', index=False)
+y_test.to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\prepped_data\scaled_prepped\y_test.csv', index=False)
 
 # Placeholder to visualize feature names if needed
 feature_names = X.columns if isinstance(X, pd.DataFrame) else [f"Feature_{i}" for i in range(X.shape[1])]
