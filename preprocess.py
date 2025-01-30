@@ -13,10 +13,6 @@ class DataProcessor:
     def load_data(self):
         features = pd.read_csv(self.features_path, delimiter=";", header=0)
         labels = pd.read_csv(self.labels_path, delimiter=";", header=0)
-        return features, labels
-
-    def preprocess_data(self, features, labels):
-        # Combine features and labels into a single DataFrame
         raw_data = pd.concat([features, labels['devol_yield']], axis=1)
         raw_data = raw_data.drop(columns=['atmosphere'])
         return raw_data
