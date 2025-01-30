@@ -82,39 +82,26 @@ class OutlierRemoval:
         self.dataframe = dataframe
         self.column_name = column_name
         self.z_scores = None
+        self.iqr = None
+        self.lower_bound = None
+        self.upper_bound = None
 
     def calculate_z_scores(self):
         self.z_scores = stats.zscore(self.dataframe[self.column_name])
         return self.z_scores
 
-
     def filter_outliers(self, threshold=2):
         if self.z_scores is None:
             self.calculate_z_scores()
-
         filtered_dataframe = self.dataframe[abs(self.z_scores) < threshold]
         return filtered_dataframe
 
-
-class OutlierRemoval:
-    def __init__(self, dataframe, column_name):
-        self.dataframe = dataframe
-        self.column_name = column_name
-        self.iqr = None
-        self.lower_bound = None
-        self.upper_bound = None
-
-    def calculate_iqr(self):
+    def iqr_filter(self):
         Q1 = self.dataframe[self.column_name].quantile(0.25)
         Q3 = self.dataframe[self.column_name].quantile(0.75)
         self.iqr = Q3 - Q1
         self.lower_bound = Q1 - 1.5 * self.iqr
         self.upper_bound = Q3 + 1.5 * self.iqr
-
-        return self.iqr, self.lower_bound, self.upper_bound
-
-    def remove_outliers(self):
-        self.calculate_iqr()
         return self.dataframe[(self.dataframe[self.column_name] >= self.lower_bound) &
                               (self.dataframe[self.column_name] <= self.upper_bound)]
 
@@ -132,7 +119,7 @@ class OutlierRemoval:
         else:
             raise ValueError("Choose from 'mean', 'median', or 'mode'.")
 
-        self.dataframe[self.column_name].fillna(value, inplace=True)
+        self.dataframe.loc[:, self.column_name] = self.dataframe[self.column_name].fillna(value)
         return self.dataframe
 
 
