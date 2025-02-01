@@ -1,7 +1,3 @@
-import sys
-sys.path.append('/path/to/other-branch-folder/')
-import preprocess
-import xgboost as xgb
 from xgboost import cv, DMatrix, train, XGBRegressor
 from sklearn.model_selection import KFold, RandomizedSearchCV, train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -9,27 +5,17 @@ from sklearn.metrics import mean_squared_error, r2_score
 import pandas as pd
 import numpy as np
 
-X_path = r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\prepped_data\preprocessed_features.csv"
-y_path = r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\prepped_data\preprocessed_labels.csv"
 
-X,y = preprocess.load_data(X_path,y_path)
-X = X.iloc[:, 1:]
+X_train = pd.read_csv(r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\prepped_data\scaled_prepped\X_train.csv")
+X_test = pd.read_csv(r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\prepped_data\scaled_prepped\X_test.csv")
+y_train = pd.read_csv(r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\prepped_data\scaled_prepped\y_train.csv")
+y_test = pd.read_csv(r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\prepped_data\scaled_prepped\y_test.csv")
 
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
-
-# Save test and train data as CSV files (optional, if needed for persistence)
-pd.DataFrame(X_train_scaled, columns=X.columns).to_csv(r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\prepped_data\scaled_prepped\X_train.csv", index=False)
-pd.DataFrame(X_test_scaled, columns=X.columns).to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\prepped_data\scaled_prepped\X_test.csv', index=False)
-y_train.to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\prepped_data\scaled_prepped\y_train.csv', index=False)
-y_test.to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\prepped_data\scaled_prepped\y_test.csv', index=False)
+X_train.drop(columns=['vm', 'h', 'o', 'c', 'lhv'], inplace=True)
+X_test.drop(columns=['vm', 'h', 'o', 'c', 'lhv'], inplace=True)
 
 # Placeholder to visualize feature names if needed
-feature_names = X.columns if isinstance(X, pd.DataFrame) else [f"Feature_{i}" for i in range(X.shape[1])]
+feature_names = X_train.columns if isinstance(X_train, pd.DataFrame) else [f"Feature_{i}" for i in range(X_train.shape[1])]
 
 # Update XGBoost cross-validation process to use only training data
 kf = KFold(n_splits=5, shuffle=True, random_state=42)
@@ -75,8 +61,8 @@ for i in range(n_iter):
         fold_scores = []
 
         # Cross-validate using only the training set
-        for train_index, val_index in kf.split(X_train_scaled, y_train):
-            X_train_fold, X_val_fold = X_train_scaled[train_index], X_train_scaled[val_index]
+        for train_index, val_index in kf.split(X_train, y_train):
+            X_train_fold, X_val_fold = X_train.iloc[train_index], X_train.iloc[val_index]
             y_train_fold, y_val_fold = y_train.iloc[train_index], y_train.iloc[val_index]
 
             model = XGBRegressor(
@@ -127,12 +113,20 @@ final_model = XGBRegressor(
     random_state=42
 )
 
-final_model.fit(X_train_scaled, y_train)
+final_model.fit(X_train, y_train)
 
 # Evaluate on the test set
-y_pred_test = final_model.predict(X_test_scaled)
+y_pred_test = final_model.predict(X_test)
 test_rmse = mean_squared_error(y_test, y_pred_test) ** 0.5
 test_r2 = r2_score(y_test, y_pred_test)
+
+importances = final_model.feature_importances_
+feature_names = X_train.columns
+
+# Sort features by importance
+sorted_idx = importances.argsort()[::-1]
+for i in sorted_idx:
+    print(f"{feature_names[i]}: {importances[i]:.4f}")
 
 print(f"\nBest parameters (grid search): {best_params}")
 print(f"\nTest Set Performance:")
