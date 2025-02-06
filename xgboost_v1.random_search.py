@@ -1,3 +1,4 @@
+import shap
 from xgboost import cv, DMatrix, train, XGBRegressor
 from sklearn.model_selection import KFold, RandomizedSearchCV, train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -127,6 +128,12 @@ feature_names = X_train.columns
 sorted_idx = importances.argsort()[::-1]
 for i in sorted_idx:
     print(f"{feature_names[i]}: {importances[i]:.4f}")
+
+explainer = shap.Explainer(final_model)
+shap_values = explainer(X_train)
+
+# Visualize the SHAP summary plot
+shap.summary_plot(shap_values, X_train, feature_names=feature_names)
 
 print(f"\nBest parameters (grid search): {best_params}")
 print(f"\nTest Set Performance:")
