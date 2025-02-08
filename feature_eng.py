@@ -6,6 +6,11 @@ from preprocess import DataProcessor, FeatureEngineering
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
+'''
+Feature Engineering Approaches has been integrated to enable higher degree features and 
+as a result, some of the highly correlated features has been removed. 
+'''
+
 data = pd.read_csv(r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\feature_eng\distributed_fuels.csv", delimiter=';')
 data = data.loc[data['devol_yield'] > 0]
 
@@ -30,12 +35,11 @@ X_eng_train, X_eng_test, y_eng_train, y_eng_test = train_test_split(X_eng, y_eng
 print(f"Train set: X_train={X_eng_train.shape}, y_train={y_eng_train.shape}")
 print(f"Test set: X_test={X_eng_test.shape}, y_test={y_eng_test.shape}")
 
-# Apply StandardScaler only if needed
 scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_eng_train)
-X_test_scaled = scaler.transform(X_eng_test)
+X_eng_train_scaled = pd.DataFrame(scaler.fit_transform(X_eng_train), columns=X_eng_train.columns)
+X_eng_test_scaled = pd.DataFrame(scaler.transform(X_eng_test), columns=X_eng_test.columns)
 
-X_eng_train.to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\feature_eng\X_train_engineered.csv', index=False)
-X_eng_test.to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\feature_eng\X_test_engineered.csv', index=False)
+X_eng_train_scaled.to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\feature_eng\X_train_engineered.csv', index=False)
+X_eng_test_scaled.to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\feature_eng\X_test_engineered.csv', index=False)
 y_eng_train.to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\feature_eng\y_train_engineered.csv', index=False)
 y_eng_test.to_csv(r'C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\feature_eng\y_test_engineered.csv', index=False)
