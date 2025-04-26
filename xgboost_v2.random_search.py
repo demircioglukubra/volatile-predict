@@ -1,11 +1,21 @@
+import re
 import shap
 from xgboost import cv, DMatrix, train, XGBRegressor
 from sklearn.model_selection import KFold, RandomizedSearchCV, train_test_split
-from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.decomposition import PCA
 import pandas as pd
 import numpy as np
+import xgboost as xgb
+import matplotlib.pyplot as plt
+import graphviz
+import os
+import joblib
 
+
+'''
+Feature Engineering Approach has been integrated (Multivariate Transformation & Feature Extraction)
+'''
 
 X_train = pd.read_csv(r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\xgb_best_performers\bio+mix_R81\X_train.csv", delimiter=",")
 X_test = pd.read_csv(r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\xgb_best_performers\bio+mix_R81\X_test.csv" ,delimiter=",")
@@ -13,19 +23,17 @@ y_train = pd.read_csv(r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\xgb_best
 y_test = pd.read_csv(r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\Data\xgb_best_performers\bio+mix_R81\y_test.csv", delimiter=",")
 
 
-
 feature_names = X_train.columns if isinstance(X_train, pd.DataFrame) else [f"Feature_{i}" for i in range(X_train.shape[1])]
 
-# Update XGBoost cross-validation process to use only training data
 kf = KFold(n_splits=5, shuffle=True, random_state=42)
 results = []
 
-# Define parameter distributions for random search
+
 param_distributions = {
-    'max_depth': [5, 7, 9],
-    'learning_rate': np.random.uniform(0.01, 0.2, 10),
-    'subsample': np.random.uniform(0.8, 1.0, 10),
-    'colsample_bytree': np.random.uniform(0.8, 1.0, 10),
+    'max_depth': [3,5, 7],
+    'learning_rate': np.random.uniform(0.001, 0.2, 10),
+    'subsample': np.random.uniform(0.6, 1.0, 10),
+    'colsample_bytree': np.random.uniform(0.6, 1.0, 10),
     'gamma': np.random.uniform(0, 1, 10),
     'alpha': np.random.uniform(0, 1, 10),
     'min_child_weight': np.random.uniform(1, 3, 10),
@@ -119,13 +127,29 @@ y_pred_test = final_model.predict(X_test)
 test_rmse = mean_squared_error(y_test, y_pred_test) ** 0.5
 test_r2 = r2_score(y_test, y_pred_test)
 
+graph = xgb.to_graphviz(final_model, num_trees=0, rankdir="LR")
+# Render and view the updated tree
+graph.render("xgb_tree_original_values", format="png", cleanup=True)
+graph.view()
+
+final_model.get_booster().dump_model('xgboost_tree_dump.txt')
+joblib.dump(final_model, 'xgb.pkl')
+
 importances = final_model.feature_importances_
 feature_names = X_train.columns
 
-# Sort features by importance
+# Sort feature importance
 sorted_idx = importances.argsort()[::-1]
-for i in sorted_idx:
-    print(f"{feature_names[i]}: {importances[i]:.4f}")
+sorted_features = [feature_names[i] for i in sorted_idx]
+
+# Plot
+plt.figure(figsize=(10, 6))
+plt.barh(sorted_features, importances[sorted_idx], color='royalblue')
+plt.xlabel("Feature Importance")
+plt.ylabel("Feature")
+plt.title("Feature Importance in XGBoost Model")
+plt.gca().invert_yaxis()  # To display the most important feature at the top
+plt.show()
 
 explainer = shap.Explainer(final_model)
 shap_values = explainer(X_train)
@@ -137,3 +161,65 @@ print(f"\nBest parameters (grid search): {best_params}")
 print(f"\nTest Set Performance:")
 print(f"Test RMSE: {test_rmse}")
 print(f"Test R-Squared: {test_r2}")
+
+
+# Determine the number of features
+num_features = X_test.shape[1]
+
+# Define the grid dimensions for subplots (e.g., 3 rows x 4 columns for 12 features)
+n_cols = 4
+n_rows = int(np.ceil(num_features / n_cols))
+
+fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 5, n_rows * 4))
+axes = axes.flatten()
+
+# Loop over each feature and plot actual vs. predicted values
+for i, feature in enumerate(X_test.columns):
+    ax = axes[i]
+    ax.scatter(X_test[feature], y_test, color='blue', alpha=0.5, label='Actual')
+    ax.scatter(X_test[feature], y_pred_test, color='red', alpha=0.5, label='Predicted')
+    ax.set_xlabel(feature)
+    ax.set_ylabel('Target')
+    ax.legend()
+    ax.set_title(f"Feature: {feature}")
+
+# Hide any unused subplots if the grid is larger than the number of features
+for j in range(i + 1, len(axes)):
+    axes[j].set_visible(False)
+
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(7, 7))
+plt.scatter(y_test, y_pred_test, color='blue', alpha=0.6, label='Predictions')
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'k--', lw=2, label='Perfect Fit')
+plt.xlabel('Actual Values')
+plt.ylabel('Predicted Values')
+plt.title('Actual vs. Predicted Values (Parity Plot)')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+y_pred_test = y_pred_test.flatten()
+
+residuals = y_test - y_pred_test
+
+plt.figure(figsize=(7, 5))
+plt.scatter(y_pred_test, residuals, color='red', alpha=0.6)
+plt.axhline(y=0, color='black', linestyle='--', lw=2)
+plt.xlabel('Predicted Values')
+plt.ylabel('Residuals (Actual - Predicted)')
+plt.title('Residual Plot')
+plt.grid(True)
+plt.show()
+
+plt.figure(figsize=(7, 5))
+plt.scatter(X_test['hc'], y_pred_test, color='red', alpha=0.6)
+plt.scatter(X_test['hc'], y_test, color='blue', alpha=0.6)
+plt.axhline(y=0, color='black', linestyle='--', lw=2)
+plt.xlabel('Predicted Values')
+plt.ylabel('Residuals (Actual - Predicted)')
+plt.title('Residual Plot')
+plt.grid(True)
+plt.show()
+
