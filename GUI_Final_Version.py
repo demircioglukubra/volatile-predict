@@ -77,7 +77,7 @@ def preprocess_and_predict(df, custom_category=None, custom_therm=None):
 # === Streamlit UI ===
 st.title("🔥 Volatile Release Predictor")
 
-st.markdown("## Fuel & Operational Conditions Information")
+st.markdown("## Fuel & Operational Conditions Inputs")
 
 col1, col2 = st.columns(2)
 
@@ -141,7 +141,7 @@ if submitted:
     import matplotlib.pyplot as plt
 
     x = result_df['temperature']
-    y = result_df['predicted_devol_yield']
+    y = result_df['predicted_devol_yield'] * (100 - df_input['ac'])
 
     # Less smoothing: fewer points + quadratic spline
     x_smooth = np.linspace(x.min(), x.max(), 100)
