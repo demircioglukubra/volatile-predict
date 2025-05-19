@@ -122,6 +122,7 @@ temp_max = st.number_input("Max Temp (°C)", value=800)
 temp_steps = st.slider("Steps", 2, 20, 5)
 
 submitted = st.button("Predict")
+exp_file = st.file_uploader("Upload Experimental Data (CSV)", type=["csv"])
 
 # === Plot Results ===
 if submitted:
@@ -135,7 +136,14 @@ if submitted:
     colors = plt.cm.tab10(np.linspace(0, 1, len(heating_rates)))
     markers = ['s', 'o', 'v', '^', 'd', '<', '>']
 
+    # Load experimental data if available
+    if exp_file is not None:
+        exp_df = pd.read_csv(exp_file)
+        exp_df['fuel_type'] = exp_df['fuel_type'].astype(str).str.lower()
+        fuel_type_lower = fuel_type.lower()
+
     for i, hr in enumerate(heating_rates):
+        # Simulated Prediction
         rows = []
         for T in np.linspace(temp_min, temp_max, temp_steps):
             rows.append({
@@ -150,21 +158,32 @@ if submitted:
         x = result_df['temperature']
         y = result_df['predicted_devol_yield'] * (1 - df_hr['ac'] / 100) * 100  # ash-free mass loss %
 
-        # Smooth
+        # Smoothing
+        k_spline = 2 if len(x) < 4 else 3
         x_smooth = np.linspace(x.min(), x.max(), 150)
-        spl = make_interp_spline(x, y, k=2)
+        spl = make_interp_spline(x, y, k=k_spline)
         y_smooth = spl(x_smooth)
 
-        ax.plot(x_smooth, y_smooth, label=f"{int(hr)} K/s",
+        ax.plot(x_smooth, y_smooth,
+                label=f"Sim {int(hr)} K/s",
                 color=colors[i], linestyle='--',
                 marker=markers[i % len(markers)], markevery=10, markersize=5)
 
+        # === Experimental Overlay ===
+        if exp_file is not None:
+            exp_sub = exp_df[(exp_df['fuel_type'] == fuel_type_lower) & (exp_df['heat_rate'] == hr)]
+            if not exp_sub.empty:
+                x_exp = exp_sub['temperature']
+                y_exp = exp_sub['devol_yield'] * (1 - exp_sub['ac'] / 100) * 100
+                ax.scatter(x_exp, y_exp, color=colors[i], marker='x', s=50,
+                           label=f"Exp {int(hr)} K/s")
+
     ax.set_xlabel("Temperature / °C")
     ax.set_ylabel("Mass loss / wt.%")
-    ax.set_title(f"Simulated Mass Loss Curves — {fuel_type}")
+    ax.set_title(f"Simulated vs. Experimental — {fuel_type}")
     ax.set_xlim(temp_min - 10, temp_max + 10)
     ax.set_ylim(0, 100)
-    ax.legend(title="Heating Rate")
     ax.grid(True)
+    ax.legend(title="Legend", fontsize=10)
 
     st.pyplot(fig)
