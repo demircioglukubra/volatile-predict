@@ -122,7 +122,7 @@ temp_max = st.number_input("Max Temp (°C)", value=800)
 temp_steps = st.slider("Steps", 2, 20, 5)
 
 submitted = st.button("Predict")
-exp_file = st.file_uploader("Upload Experimental Data (CSV)", type=["csv"])
+exp_df = pd.read_csv(exp_file, delimiter=',')
 
 # === Plot Results ===
 if submitted:
@@ -171,12 +171,10 @@ if submitted:
 
         # === Experimental Overlay ===
         if exp_file is not None:
-            exp_sub = exp_df[(exp_df['fuel_type'] == fuel_type_lower) & (exp_df['heat_rate'] == hr)]
-            if not exp_sub.empty:
-                x_exp = exp_sub['temperature']
-                y_exp = exp_sub['devol_yield'] * (1 - exp_sub['ac'] / 100) * 100
-                ax.scatter(x_exp, y_exp, color=colors[i], marker='x', s=50,
-                           label=f"Exp {int(hr)} K/s")
+            exp_df = pd.read_csv(exp_file, delimiter=',')
+            exp_df['fuel_type'] = exp_df['fuel_type'].astype(str).str.lower()
+            fuel_type_lower = fuel_type.lower()
+
 
     ax.set_xlabel("Temperature / °C")
     ax.set_ylabel("Mass loss / wt.%")
