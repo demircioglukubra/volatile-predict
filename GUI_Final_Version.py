@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 
 @st.cache_resource
 def load_models():
-    ea_model, ea_scaler = joblib.load(r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\!Models\Ea_model_LGB_best.pkl")
-    A_model, A_scaler = joblib.load(r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\!Models\A_model_LGB_best.pkl")
-    final_model, final_scaler = joblib.load(r"C:\Users\demir\OneDrive\Desktop\MSc Thesis\!Models\FinalModel_baseline_Ea_A_LGB.pkl")
+    ea_model, ea_scaler = joblib.load("Ea_model_LGB_best.pkl")
+    A_model, A_scaler = joblib.load("A_model_LGB_best.pkl")
+    final_model, final_scaler = joblib.load("FinalModel_baseline_Ea_A_LGB.pkl")
     return ea_model, ea_scaler, A_model, A_scaler, final_model, final_scaler
 
 
