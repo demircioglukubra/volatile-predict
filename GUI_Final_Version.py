@@ -5,7 +5,6 @@ import joblib
 import matplotlib.pyplot as plt
 from scipy.interpolate import make_interp_spline
 
-
 # === Load Models ===
 @st.cache_resource
 def load_models():
@@ -16,7 +15,6 @@ def load_models():
 
 
 ea_model, ea_scaler, A_model, A_scaler, final_model, final_scaler = load_models()
-
 
 # === Prediction Logic ===
 def preprocess_and_predict(df, custom_category=None, custom_therm=None):
@@ -78,7 +76,6 @@ def preprocess_and_predict(df, custom_category=None, custom_therm=None):
 
 # === Streamlit UI ===
 st.title("🔥 Volatile Release Predictor")
-
 st.markdown("## Fuel & Operational Conditions Inputs")
 
 col1, col2 = st.columns(2)
@@ -91,7 +88,6 @@ existing_fuels = [
 
 with col1:
     fuel_choice = st.selectbox("Fuel Type", existing_fuels + ["Other (New Fuel)"])
-
     if fuel_choice == "Other (New Fuel)":
         fuel_type = st.text_input("Enter New Fuel Name")
         custom_category = st.selectbox("Select Fuel Category", ["Biomass", "Coal", "Mix", "Plastic"])
@@ -123,7 +119,6 @@ temp_steps = st.slider("Steps", 2, 20, 5)
 
 submitted = st.button("Predict")
 exp_file = st.file_uploader("Upload Experimental Data (CSV)", type=["csv"])
-exp_df = pd.read_csv(exp_file, delimiter=',')
 
 # === Plot Results ===
 if submitted:
@@ -137,11 +132,17 @@ if submitted:
     colors = plt.cm.tab10(np.linspace(0, 1, len(heating_rates)))
     markers = ['s', 'o', 'v', '^', 'd', '<', '>']
 
-    # Load experimental data if available
+    # Prepare experimental data (if provided)
     if exp_file is not None:
-        exp_df = pd.read_csv(exp_file)
-        exp_df['fuel_type'] = exp_df['fuel_type'].astype(str).str.lower()
-        fuel_type_lower = fuel_type.lower()
+        try:
+            exp_df = pd.read_csv(exp_file, delimiter=',')
+            exp_df['fuel_type'] = exp_df['fuel_type'].astype(str).str.lower()
+            fuel_type_lower = fuel_type.lower()
+        except Exception as e:
+            st.warning(f"Failed to read experimental data: {e}")
+            exp_df = None
+    else:
+        exp_df = None
 
     for i, hr in enumerate(heating_rates):
         # Simulated Prediction
@@ -157,9 +158,8 @@ if submitted:
         result_df = preprocess_and_predict(df_hr, custom_category, custom_therm)
 
         x = result_df['temperature']
-        y = result_df['predicted_devol_yield'] * (1 - df_hr['ac'] / 100) * 100  # ash-free mass loss %
+        y = result_df['predicted_devol_yield'] * (1 - df_hr['ac'] / 100) * 100  # ash-free %
 
-        # Smoothing
         k_spline = 2 if len(x) < 4 else 3
         x_smooth = np.linspace(x.min(), x.max(), 150)
         spl = make_interp_spline(x, y, k=k_spline)
@@ -170,12 +170,13 @@ if submitted:
                 color=colors[i], linestyle='--',
                 marker=markers[i % len(markers)], markevery=10, markersize=5)
 
-        # === Experimental Overlay ===
-        if exp_file is not None:
-            exp_df = pd.read_csv(exp_file, delimiter=',')
-            exp_df['fuel_type'] = exp_df['fuel_type'].astype(str).str.lower()
-            fuel_type_lower = fuel_type.lower()
-
+        # === Overlay Experimental Data ===
+        if exp_df is not None:
+            subset = exp_df[(exp_df['fuel_type'] == fuel_type_lower) & (exp_df['heat_rate'] == hr)]
+            if not subset.empty:
+                x_exp = subset['temperature']
+                y_exp = subset['devol_yield'] * (1 - subset['ac'] / 100) * 100
+                ax.scatter(x_exp, y_exp, color=colors[i], marker='x', s=50, label=f"Exp {int(hr)} K/s")
 
     ax.set_xlabel("Temperature / °C")
     ax.set_ylabel("Mass loss / wt.%")
