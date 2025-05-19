@@ -77,7 +77,7 @@ def preprocess_and_predict(df, custom_category=None, custom_therm=None):
 # === Streamlit UI ===
 st.title("🔥 Volatile Release Predictor")
 
-st.markdown("## Fuel Information")
+st.markdown("## Fuel & Operational Conditions Information")
 
 col1, col2 = st.columns(2)
 
