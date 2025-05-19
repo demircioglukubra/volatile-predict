@@ -13,7 +13,6 @@ def load_models():
     final_model, final_scaler = joblib.load("FinalModel_baseline_Ea_A_LGB.pkl")
     return ea_model, ea_scaler, A_model, A_scaler, final_model, final_scaler
 
-
 ea_model, ea_scaler, A_model, A_scaler, final_model, final_scaler = load_models()
 
 # === Prediction Logic ===
@@ -57,15 +56,12 @@ def preprocess_and_predict(df, custom_category=None, custom_therm=None):
     for col in ['vm_fc', 'ac_fc', 'cl_ac', 'n_ac', 't_to_T', 'oh_w', 'oc', 'hc']:
         df[f'log_{col}'] = np.log(df[col] + eps)
 
-    # === Ea prediction ===
     X_ea = df[[f for f in ea_scaler.feature_names_in_ if f in df.columns]]
     df['EA_Arr'] = ea_model.predict(ea_scaler.transform(X_ea))
 
-    # === A prediction ===
     X_A = df[[f for f in A_scaler.feature_names_in_ if f in df.columns]]
     df['A_Arr'] = A_model.predict(A_scaler.transform(X_A))
 
-    # === Final prediction ===
     final_fs = ['hc', 'oc', 'vm_fc', 'temperature', 'heat_rate',
                 'residence_time', 'pressure', 'EA_Arr', 'A_Arr']
     X_final = final_scaler.transform(df[final_fs])
@@ -73,9 +69,8 @@ def preprocess_and_predict(df, custom_category=None, custom_therm=None):
 
     return df[['temperature', 'EA_Arr', 'A_Arr', 'predicted_devol_yield']]
 
-
 # === Streamlit UI ===
-st.title("🔥 Volatile Release Predictor")
+st.title("\U0001F525 Volatile Release Predictor")
 st.markdown("## Fuel & Operational Conditions Inputs")
 
 col1, col2 = st.columns(2)
@@ -109,8 +104,8 @@ with col2:
     cl = st.number_input("Cl (%)", value=0.1)
     n = st.number_input("N (%)", value=0.5)
     heat_rate_input = st.text_input("Heating Rates (K/s, comma-separated)", value="10, 100, 1000")
-    res_time = st.number_input("Residence Time (s)", value=2.0)
-    pressure = st.number_input("Pressure (bar)", value=1.0)
+    pressure_input = st.text_input("Pressures (bar, comma-separated)", value="1.0")
+    res_time_input = st.text_input("Residence Times (s, comma-separated)", value="2.0")
 
 st.markdown("### Temperature Range")
 temp_min = st.number_input("Min Temp (°C)", value=400)
@@ -120,58 +115,69 @@ temp_steps = st.slider("Steps", 2, 20, 5)
 submitted = st.button("Predict")
 exp_file = st.file_uploader("Upload Experimental Data (CSV)", type=["csv"])
 
-# === Plot Results ===
 if submitted:
     try:
         heating_rates = [float(hr.strip()) for hr in heat_rate_input.split(',') if hr.strip()]
+        pressures = [float(p.strip()) for p in pressure_input.split(',') if p.strip()]
+        residence_times = [float(r.strip()) for r in res_time_input.split(',') if r.strip()]
     except ValueError:
-        st.error("Please enter numeric heating rates separated by commas.")
+        st.error("Please enter numeric values separated by commas.")
         st.stop()
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    colors = plt.cm.tab10(np.linspace(0, 1, len(heating_rates)))
+    colors = plt.cm.tab10(np.linspace(0, 1, len(heating_rates) * len(pressures)))
     markers = ['s', 'o', 'v', '^', 'd', '<', '>']
 
-    # Prepare experimental data (if provided)
     exp_df = None
     if exp_file is not None:
         exp_df = pd.read_csv(exp_file, delimiter=',')
         exp_df['fuel_type'] = exp_df['fuel_type'].astype(str).str.lower()
         fuel_type_lower = fuel_type.lower()
 
+    color_idx = 0
     for i, hr in enumerate(heating_rates):
-        # Simulated Prediction
-        rows = []
-        for T in np.linspace(temp_min, temp_max, temp_steps):
-            rows.append({
-                'fuel_type': fuel_type, 'hc': hc, 'oc': oc, 'h': h, 'o': o,
-                'vm': vm, 'fc': fc, 'ac': ac, 'cl': cl, 'n': n,
-                'heat_rate': hr, 'residence_time': res_time,
-                'pressure': pressure, 'temperature': T
-            })
-        df_hr = pd.DataFrame(rows)
-        result_df = preprocess_and_predict(df_hr, custom_category, custom_therm)
+        for j, p in enumerate(pressures):
+            for k, rt in enumerate(residence_times):
+                rows = []
+                for T in np.linspace(temp_min, temp_max, temp_steps):
+                    rows.append({
+                        'fuel_type': fuel_type, 'hc': hc, 'oc': oc, 'h': h, 'o': o,
+                        'vm': vm, 'fc': fc, 'ac': ac, 'cl': cl, 'n': n,
+                        'heat_rate': hr, 'residence_time': rt,
+                        'pressure': p, 'temperature': T
+                    })
+                df_hr = pd.DataFrame(rows)
+                result_df = preprocess_and_predict(df_hr, custom_category, custom_therm)
 
-        x = result_df['temperature']
-        y = result_df['predicted_devol_yield'] * (1 - df_hr['ac'] / 100) * 100  # ash-free %
+                x = result_df['temperature']
+                y = result_df['predicted_devol_yield'] * (1 - df_hr['ac'] / 100) * 100
 
-        k_spline = 2
-        x_smooth = np.linspace(x.min(), x.max(), 50)
-        spl = make_interp_spline(x, y, k=k_spline)
-        y_smooth = spl(x_smooth)
+                k_spline = 2
+                x_smooth = np.linspace(x.min(), x.max(), 50)
+                spl = make_interp_spline(x, y, k=k_spline)
+                y_smooth = spl(x_smooth)
 
-        ax.plot(x_smooth, y_smooth,
-                label=f"Sim {int(hr)} K/s",
-                color=colors[i], linestyle='--',
-                marker=markers[i % len(markers)], markevery=10, markersize=5)
+                label = f"Sim {int(hr)} K/s @ {p} bar / {rt:.1f} s"
+                ax.plot(x_smooth, y_smooth,
+                        label=label,
+                        color=colors[color_idx % len(colors)],
+                        linestyle='--',
+                        marker=markers[color_idx % len(markers)],
+                        markevery=10, markersize=5)
+                color_idx += 1
 
-        # === Overlay Experimental Data ===
-        if exp_df is not None:
-            subset = exp_df[(exp_df['fuel_type'] == fuel_type_lower) & (exp_df['heat_rate'] == hr)]
-            if not subset.empty:
-                x_exp = subset['temperature']
-                y_exp = subset['devol_yield'] * (1 - subset['ac'] / 100) * 100
-                ax.scatter(x_exp, y_exp, color=colors[i], marker='x', s=50, label=f"Exp {int(hr)} K/s")
+                if exp_df is not None:
+                    subset = exp_df[(exp_df['fuel_type'] == fuel_type_lower) &
+                                    (exp_df['heat_rate'] == hr) &
+                                    (exp_df['pressure'] == p) &
+                                    (exp_df['residence_time'] == rt)]
+                    if not subset.empty:
+                        x_exp = subset['temperature']
+                        y_exp = subset['devol_yield'] * (1 - subset['ac'] / 100) * 100
+                        ax.scatter(x_exp, y_exp,
+                                   color=colors[color_idx % len(colors)],
+                                   marker='x', s=50,
+                                   label=f"Exp {int(hr)} K/s @ {p} bar / {rt:.1f} s")
 
     ax.set_xlabel("Temperature / °C")
     ax.set_ylabel("Mass loss / wt.%")
@@ -180,5 +186,4 @@ if submitted:
     ax.set_ylim(0, 100)
     ax.grid(True)
     ax.legend(title="Legend", fontsize=10)
-
     st.pyplot(fig)
