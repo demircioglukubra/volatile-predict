@@ -125,7 +125,7 @@ if submitted:
         st.stop()
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    colors = plt.cm.tab10(np.linspace(0, 1, len(heating_rates) * len(pressures)))
+    colors = plt.cm.tab10(np.linspace(0, 1, len(heating_rates) * len(pressures) * len(residence_times)))
     markers = ['s', 'o', 'v', '^', 'd', '<', '>']
 
     exp_df = None
@@ -135,48 +135,48 @@ if submitted:
         fuel_type_lower = fuel_type.lower()
 
     for i, hr in enumerate(heating_rates):
-    for j, p in enumerate(pressures):
-        for k, rt in enumerate(residence_times):
-            color_idx = i * len(pressures) * len(residence_times) + j * len(residence_times) + k
-            rows = []
-            for T in np.linspace(temp_min, temp_max, temp_steps):
-                rows.append({
-                    'fuel_type': fuel_type, 'hc': hc, 'oc': oc, 'h': h, 'o': o,
-                    'vm': vm, 'fc': fc, 'ac': ac, 'cl': cl, 'n': n,
-                    'heat_rate': hr, 'residence_time': rt,
-                    'pressure': p, 'temperature': T
-                })
-            df_hr = pd.DataFrame(rows)
-            result_df = preprocess_and_predict(df_hr, custom_category, custom_therm)
+        for j, p in enumerate(pressures):
+            for k, rt in enumerate(residence_times):
+                color_idx = i * len(pressures) * len(residence_times) + j * len(residence_times) + k
+                rows = []
+                for T in np.linspace(temp_min, temp_max, temp_steps):
+                    rows.append({
+                        'fuel_type': fuel_type, 'hc': hc, 'oc': oc, 'h': h, 'o': o,
+                        'vm': vm, 'fc': fc, 'ac': ac, 'cl': cl, 'n': n,
+                        'heat_rate': hr, 'residence_time': rt,
+                        'pressure': p, 'temperature': T
+                    })
+                df_hr = pd.DataFrame(rows)
+                result_df = preprocess_and_predict(df_hr, custom_category, custom_therm)
 
-            x = result_df['temperature']
-            y = result_df['predicted_devol_yield'] * (1 - df_hr['ac'] / 100) * 100
+                x = result_df['temperature']
+                y = result_df['predicted_devol_yield'] * (1 - df_hr['ac'] / 100) * 100
 
-            k_spline = 2
-            x_smooth = np.linspace(x.min(), x.max(), 50)
-            spl = make_interp_spline(x, y, k=k_spline)
-            y_smooth = spl(x_smooth)
+                k_spline = 2
+                x_smooth = np.linspace(x.min(), x.max(), 50)
+                spl = make_interp_spline(x, y, k=k_spline)
+                y_smooth = spl(x_smooth)
 
-            label = f"Sim {int(hr)} K/s @ {p} bar / {rt:.1f} s"
-            ax.plot(x_smooth, y_smooth,
-                    label=label,
-                    color=colors[color_idx % len(colors)],
-                    linestyle='--',
-                    marker=markers[color_idx % len(markers)],
-                    markevery=10, markersize=5)
+                label = f"Sim {int(hr)} K/s @ {p} bar / {rt:.1f} s"
+                ax.plot(x_smooth, y_smooth,
+                        label=label,
+                        color=colors[color_idx % len(colors)],
+                        linestyle='--',
+                        marker=markers[color_idx % len(markers)],
+                        markevery=10, markersize=5)
 
-            if exp_df is not None:
-                subset = exp_df[(exp_df['fuel_type'] == fuel_type_lower) &
-                                (exp_df['heat_rate'] == hr) &
-                                (exp_df['pressure'] == p) &
-                                (exp_df['residence_time'] == rt)]
-                if not subset.empty:
-                    x_exp = subset['temperature']
-                    y_exp = subset['devol_yield'] * (1 - subset['ac'] / 100) * 100
-                    ax.scatter(x_exp, y_exp,
-                               color=colors[color_idx % len(colors)],
-                               marker='x', s=50,
-                               label=f"Exp {int(hr)} K/s @ {p} bar / {rt:.1f} s")
+                if exp_df is not None:
+                    subset = exp_df[(exp_df['fuel_type'] == fuel_type_lower) &
+                                    (exp_df['heat_rate'] == hr) &
+                                    (exp_df['pressure'] == p) &
+                                    (exp_df['residence_time'] == rt)]
+                    if not subset.empty:
+                        x_exp = subset['temperature']
+                        y_exp = subset['devol_yield'] * (1 - subset['ac'] / 100) * 100
+                        ax.scatter(x_exp, y_exp,
+                                   color=colors[color_idx % len(colors)],
+                                   marker='x', s=50,
+                                   label=f"Exp {int(hr)} K/s @ {p} bar / {rt:.1f} s")
 
     ax.set_xlabel("Temperature / °C")
     ax.set_ylabel("Mass loss / wt.%")
