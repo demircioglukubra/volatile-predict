@@ -155,8 +155,8 @@ if submitted:
         x = result_df['temperature']
         y = result_df['predicted_devol_yield'] * (1 - df_hr['ac'] / 100) * 100  # ash-free %
 
-        k_spline = 2 if len(x) < 4 else 3
-        x_smooth = np.linspace(x.min(), x.max(), 150)
+        k_spline = 2
+        x_smooth = np.linspace(x.min(), x.max(), 50)
         spl = make_interp_spline(x, y, k=k_spline)
         y_smooth = spl(x_smooth)
 
