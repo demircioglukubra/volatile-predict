@@ -141,7 +141,7 @@ if submitted:
     import matplotlib.pyplot as plt
 
     x = result_df['temperature']
-    y = result_df['predicted_devol_yield'] * (100 - df_input['ac'])
+    y = result_df['predicted_devol_yield'] * (1 - (df_input['ac']/100))
 
     # Less smoothing: fewer points + quadratic spline
     x_smooth = np.linspace(x.min(), x.max(), 100)
