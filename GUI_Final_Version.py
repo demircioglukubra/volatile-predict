@@ -133,16 +133,11 @@ if submitted:
     markers = ['s', 'o', 'v', '^', 'd', '<', '>']
 
     # Prepare experimental data (if provided)
+    exp_df = None
     if exp_file is not None:
-        try:
-            exp_df = pd.read_csv(exp_file, delimiter=',')
-            exp_df['fuel_type'] = exp_df['fuel_type'].astype(str).str.lower()
-            fuel_type_lower = fuel_type.lower()
-        except Exception as e:
-            st.warning(f"Failed to read experimental data: {e}")
-            exp_df = None
-    else:
-        exp_df = None
+        exp_df = pd.read_csv(exp_file, delimiter=',')
+        exp_df['fuel_type'] = exp_df['fuel_type'].astype(str).str.lower()
+        fuel_type_lower = fuel_type.lower()
 
     for i, hr in enumerate(heating_rates):
         # Simulated Prediction
