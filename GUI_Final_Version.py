@@ -113,8 +113,6 @@ temp_max = st.number_input("Max Temp (°C)", value=800)
 temp_steps = st.slider("Steps", 2, 20, 5)
 
 submitted = st.button("Predict")
-exp_file = st.file_uploader("Upload Experimental Data (CSV)", type=["csv"])
-
 if submitted:
     try:
         heating_rates = [float(hr.strip()) for hr in heat_rate_input.split(',') if hr.strip()]
@@ -127,12 +125,6 @@ if submitted:
     fig, ax = plt.subplots(figsize=(8, 6))
     colors = plt.cm.tab10(np.linspace(0, 1, len(heating_rates) * len(pressures) * len(residence_times)))
     markers = ['s', 'o', 'v', '^', 'd', '<', '>']
-
-    exp_df = None
-    if exp_file is not None:
-        exp_df = pd.read_csv(exp_file, delimiter=',')
-        exp_df['fuel_type'] = exp_df['fuel_type'].astype(str).str.lower()
-        fuel_type_lower = fuel_type.lower()
 
     for i, hr in enumerate(heating_rates):
         for j, p in enumerate(pressures):
@@ -165,22 +157,9 @@ if submitted:
                         marker=markers[color_idx % len(markers)],
                         markevery=10, markersize=5)
 
-                if exp_df is not None:
-                    subset = exp_df[(exp_df['fuel_type'] == fuel_type_lower) &
-                                    (exp_df['heat_rate'] == hr) &
-                                    (exp_df['pressure'] == p) &
-                                    (exp_df['residence_time'] == rt)]
-                    if not subset.empty:
-                        x_exp = subset['temperature']
-                        y_exp = subset['devol_yield'] * (1 - subset['ac'] / 100) * 100
-                        ax.scatter(x_exp, y_exp,
-                                   color=colors[color_idx % len(colors)],
-                                   marker='x', s=50,
-                                   label=f"Exp {int(hr)} K/s @ {p} bar / {rt:.1f} s")
-
     ax.set_xlabel("Temperature / °C")
     ax.set_ylabel("Mass loss / wt.%")
-    ax.set_title(f"Simulated vs. Experimental — {fuel_type}")
+    ax.set_title(f"Predicted Mass Loss of {fuel_type}")
     ax.set_xlim(temp_min - 10, temp_max + 10)
     ax.set_ylim(0, 100)
     ax.grid(True)
