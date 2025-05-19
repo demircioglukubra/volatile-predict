@@ -163,7 +163,7 @@ if submitted:
 
     ax.set_xlabel("Temperature / °C")
     ax.set_ylabel("Mass loss / wt.%")
-    ax.set_title(f"Simulated Mass Loss Curves — {fuel_type}")
+    ax.set_title(f"Predicted Mass Loss Curves — {fuel_type}")
     ax.set_xlim(temp_min - 10, temp_max + 10)
     ax.set_ylim(0, 100)
     ax.grid(True)
