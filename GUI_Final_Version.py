@@ -15,6 +15,11 @@ def load_models():
 
 ea_model, ea_scaler, A_model, A_scaler, final_model, final_scaler = load_models()
 
+# === Load fuel database internally ===
+fuel_db = pd.read_csv("final_data_filtered_ohe.csv", delimiter = ',')  # Make sure this CSV is in your working dir
+fuel_df_grouped = fuel_db.groupby("fuel_type").mean(numeric_only=True).reset_index()
+fuel_property_dict = fuel_df_grouped.set_index("fuel_type").T.to_dict()
+
 # === Prediction Logic ===
 def preprocess_and_predict(df, custom_category=None, custom_therm=None):
     eps = 1e-6
@@ -75,34 +80,32 @@ st.markdown("## Fuel & Operational Conditions Inputs")
 
 col1, col2 = st.columns(2)
 
-existing_fuels = [
-    'Wood', 'Digestate', 'Sewage', 'HTC-MSW', 'Cellulose', 'Lignin',
-    'Hemicellulose', 'Torr-Wood', 'Lignite', 'Torr-Coal', 'Rubber',
-    'RDF1', 'RDF2', 'Digestate_PP', 'Digestate_SCP', 'Digestate_PE'
-]
+existing_fuels = list(fuel_property_dict.keys()) + ["Other (New Fuel)"]
 
 with col1:
-    fuel_choice = st.selectbox("Fuel Type", existing_fuels + ["Other (New Fuel)"])
+    fuel_choice = st.selectbox("Fuel Type", existing_fuels)
     if fuel_choice == "Other (New Fuel)":
         fuel_type = st.text_input("Enter New Fuel Name")
         custom_category = st.selectbox("Select Fuel Category", ["Biomass", "Coal", "Mix", "Plastic"])
         custom_therm = st.selectbox("Thermal Treatment?", ["Yes", "No"])
+        prefill = {}
     else:
         fuel_type = fuel_choice
         custom_category = None
         custom_therm = None
+        prefill = fuel_property_dict.get(fuel_choice, {})
 
-    hc = st.number_input("H/C Ratio", value=1.5)
-    oc = st.number_input("O/C Ratio", value=0.7)
-    h = st.number_input("H (%)", value=6.0)
-    o = st.number_input("O (%)", value=40.0)
-    vm = st.number_input("Volatile Matter (%)", value=70.0)
-    fc = st.number_input("Fixed Carbon (%)", value=20.0)
+    hc = st.number_input("H/C Ratio", value=float(prefill.get("hc", 1.5)))
+    oc = st.number_input("O/C Ratio", value=float(prefill.get("oc", 0.7)))
+    h = st.number_input("H (%)", value=float(prefill.get("h", 6.0)))
+    o = st.number_input("O (%)", value=float(prefill.get("o", 40.0)))
+    vm = st.number_input("Volatile Matter (%)", value=float(prefill.get("vm", 70.0)))
+    fc = st.number_input("Fixed Carbon (%)", value=float(prefill.get("fc", 20.0)))
 
 with col2:
-    ac = st.number_input("Ash (%)", value=10.0)
-    cl = st.number_input("Cl (%)", value=0.1)
-    n = st.number_input("N (%)", value=0.5)
+    ac = st.number_input("Ash (%)", value=float(prefill.get("ac", 10.0)))
+    cl = st.number_input("Cl (%)", value=float(prefill.get("cl", 0.1)))
+    n = st.number_input("N (%)", value=float(prefill.get("n", 0.5)))
     heat_rate_input = st.text_input("Heating Rates (K/s, comma-separated)", value="10, 100, 1000")
     pressure_input = st.text_input("Pressures (bar, comma-separated)", value="1.0")
     res_time_input = st.text_input("Residence Times (s, comma-separated)", value="2.0")
