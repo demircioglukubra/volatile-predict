@@ -3,8 +3,10 @@ import pandas as pd
 import numpy as np
 import joblib
 import matplotlib.pyplot as plt
+from scipy.interpolate import make_interp_spline
 
 
+# === Load Models ===
 @st.cache_resource
 def load_models():
     ea_model, ea_scaler = joblib.load("Ea_model_LGB_best.pkl")
@@ -110,7 +112,7 @@ with col2:
     ac = st.number_input("Ash (%)", value=10.0)
     cl = st.number_input("Cl (%)", value=0.1)
     n = st.number_input("N (%)", value=0.5)
-    heat_rate = st.number_input("Heat Rate (K/s)", value=10.0)
+    heat_rate_input = st.text_input("Heating Rates (K/s, comma-separated)", value="10, 100, 1000")
     res_time = st.number_input("Residence Time (s)", value=2.0)
     pressure = st.number_input("Pressure (bar)", value=1.0)
 
@@ -121,43 +123,48 @@ temp_steps = st.slider("Steps", 2, 20, 5)
 
 submitted = st.button("Predict")
 
+# === Plot Results ===
 if submitted:
-    temperatures = np.linspace(temp_min, temp_max, temp_steps)
-    rows = []
-    for T in temperatures:
-        rows.append({
-            'fuel_type': fuel_type, 'hc': hc, 'oc': oc, 'h': h, 'o': o,
-            'vm': vm, 'fc': fc, 'ac': ac, 'cl': cl, 'n': n,
-            'heat_rate': heat_rate, 'residence_time': res_time,
-            'pressure': pressure, 'temperature': T
-        })
-    df_input = pd.DataFrame(rows)
-    result_df = preprocess_and_predict(df_input, custom_category, custom_therm)
+    try:
+        heating_rates = [float(hr.strip()) for hr in heat_rate_input.split(',') if hr.strip()]
+    except ValueError:
+        st.error("Please enter numeric heating rates separated by commas.")
+        st.stop()
 
-    st.success("Prediction Complete!")
-    st.dataframe(result_df)
+    fig, ax = plt.subplots(figsize=(8, 6))
+    colors = plt.cm.tab10(np.linspace(0, 1, len(heating_rates)))
+    markers = ['s', 'o', 'v', '^', 'd', '<', '>']
 
-    from scipy.interpolate import make_interp_spline
-    import matplotlib.pyplot as plt
+    for i, hr in enumerate(heating_rates):
+        rows = []
+        for T in np.linspace(temp_min, temp_max, temp_steps):
+            rows.append({
+                'fuel_type': fuel_type, 'hc': hc, 'oc': oc, 'h': h, 'o': o,
+                'vm': vm, 'fc': fc, 'ac': ac, 'cl': cl, 'n': n,
+                'heat_rate': hr, 'residence_time': res_time,
+                'pressure': pressure, 'temperature': T
+            })
+        df_hr = pd.DataFrame(rows)
+        result_df = preprocess_and_predict(df_hr, custom_category, custom_therm)
 
-    x = result_df['temperature']
-    y = result_df['predicted_devol_yield'] * (1 - (df_input['ac']/100))
+        x = result_df['temperature']
+        y = result_df['predicted_devol_yield'] * (1 - df_hr['ac'] / 100) * 100  # ash-free mass loss %
 
-    # Less smoothing: fewer points + quadratic spline
-    x_smooth = np.linspace(x.min(), x.max(), 100)
-    spl = make_interp_spline(x, y, k=2)
-    y_smooth = spl(x_smooth)
+        # Smooth
+        x_smooth = np.linspace(x.min(), x.max(), 150)
+        spl = make_interp_spline(x, y, k=2)
+        y_smooth = spl(x_smooth)
 
-    fig, ax = plt.subplots()
-    ax.plot(x_smooth, y_smooth, label='Smoothed Prediction', color='red')
-    ax.scatter(x, y, color='black', s=20, label='Original Points')
-    ax.set_xlabel("Temperature (°C)")
-    ax.set_ylabel("Predicted Devol Yield")
-    ax.set_title("Smoothed Volatile Release Curve")
-    ax.set_ylim(0, 1)
-    ax.legend()
+        ax.plot(x_smooth, y_smooth, label=f"{int(hr)} K/s",
+                color=colors[i], linestyle='--',
+                marker=markers[i % len(markers)], markevery=10, markersize=5)
+
+    ax.set_xlabel("Temperature / °C")
+    ax.set_ylabel("Mass loss / wt.%")
+    ax.set_title(f"Simulated Mass Loss Curves — {fuel_type}")
+    ax.set_xlim(temp_min - 10, temp_max + 10)
+    ax.set_ylim(0, 100)
+    ax.legend(title="Heating Rate")
+    ax.grid(True)
 
     st.pyplot(fig)
-
-
-
