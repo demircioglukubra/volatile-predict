@@ -122,6 +122,7 @@ temp_max = st.number_input("Max Temp (°C)", value=800)
 temp_steps = st.slider("Steps", 2, 20, 5)
 
 submitted = st.button("Predict")
+exp_file = st.file_uploader("Upload Experimental Data (CSV)", type=["csv"])
 exp_df = pd.read_csv(exp_file, delimiter=',')
 
 # === Plot Results ===
